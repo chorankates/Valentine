@@ -70,7 +70,7 @@ gobuster with common gives us
 
 
 ```
-$ cat notes.txt 
+$ cat notes.txt
 To do:
 
 1) Coffee.
@@ -124,7 +124,7 @@ Content-Type: text/html
 Your input: <br>foobarbaz <br>Your encoded input: <br>Zm9vYmFyYmF6
 ```
 
-which.. 
+which..
 
 ```
 $ echo Zm9vYmFyYmF6 | base64 -d
@@ -138,6 +138,76 @@ however - `/encode/` and `/decode` aren't what is linked
   * http://valentine.htb/decode/encode.php
   * http://valentine.htb/encode/decode.php
 
+### `hype_key`
+
+all chars appear to be hex in the alpha range
+
+```
+$ cat foo.rb
+#!/bin/env ruby
+
+input    = './hype_key'
+contents = File.read(input)
+tokens   = contents.split(/\s/)
+
+plain = tokens.collect { |t| t.to_i(16).chr }
+
+output = 'hype_key_decoded'
+File.open(output, 'w') do |f|
+  f.print(plain.join(''))
+end
+$ ruby foo.rb
+$ file hype_key_decoded
+hype_key_decoded: PEM RSA private key
+```
+
+header is `Proc-Type: 4,ENCRYPTED`, so john
+
+```
+$ ~/git/JohnTheRipper/run/ssh2john.py hype_key_decoded > hype_key_hash
+$ john_rockyou hype_key_hash
+Warning: detected hash type "SSH", but the string is also recognized as "ssh-opencl"
+Use the "--format=ssh-opencl" option to force loading these as that type instead
+Using default input encoding: UTF-8
+Loaded 1 password hash (SSH, SSH private key [RSA/DSA/EC/OPENSSH 32/64])
+Cost 1 (KDF/cipher [0=MD5/AES 1=MD5/3DES 2=Bcrypt/AES]) is 0 for all loaded hashes
+Cost 2 (iteration count) is 1 for all loaded hashes
+Will run 16 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+0g 0:00:00:14 91.69% (ETA: 08:32:59) 0g/s 942693p/s 942693c/s 942693C/s 149467m..1493685
+0g 0:00:00:16 DONE (2022-07-27 08:33) 0g/s 894120p/s 894120c/s 894120C/s  0 0 0..clarus
+Session completed.
+
+real    0m19.012s
+user    4m12.048s
+sys     0m1.676s
+```
+
+unexpected - but we also don't know a username, so more recon is necessary
+
+### decode
+
+```
+POST /decode/ HTTP/1.1
+...
+text=foo+%26%26+id+-a
+```
+
+led to 
+
+```
+Your input:
+
+foo && id -a
+
+Your encoded input:
+
+~Š"u 
+```
+
+so definitely not sanitizing input well enough. `||` doesn't see the same 
+
+and actually it's not based on the attempts at injection, any non-b64 encoded string passed to the decoder yields the same
 
 ## flag
 ```
